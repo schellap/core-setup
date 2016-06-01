@@ -75,7 +75,7 @@ namespace Microsoft.DotNet.Cli.Build
 
             File.Copy(
                 Path.Combine(_corehostLockedDirectory, HostArtifactNames.DotnetHostFxrBaseName),
-                Path.Combine(sharedFrameworkPublishRoot, HostArtifactNames.DotnetHostFxrBaseName), true);
+                Path.Combine(sharedFrameworkPublishRoot, "host", "fxr", HostVersion.LockedHostVersion.ToString(), HostArtifactNames.DotnetHostFxrBaseName), true);
 
         }
 
