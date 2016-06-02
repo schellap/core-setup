@@ -1,6 +1,8 @@
 # Copyright (c) .NET Foundation and contributors. All rights reserved.
 # Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+set (CMAKE_CXX_STANDARD 11)
+
 if(WIN32)
     add_definitions(-DWIN32)
     add_definitions(-D_WIN32=1)
@@ -49,6 +51,11 @@ else()
     add_compile_options(-Wno-unused-local-typedef)
 endif()
 
+# Older CMake doesn't support CMAKE_CXX_STANDARD and GCC/Clang need a switch to enable C++ 11
+if(${CMAKE_CXX_COMPILER_ID} MATCHES "(Clang|GNU)")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+endif()
+
 # This is required to map a symbol reference to a matching definition local to the module (.so)
 # containing the reference instead of using definitions from other modules.
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
@@ -56,6 +63,12 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     add_compile_options(-fstack-protector-strong)
 elseif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     add_compile_options(-fstack-protector)
+endif()
+
+add_definitions(-D_NO_ASYNCRTIMP)
+add_definitions(-D_NO_PPLXIMP)
+if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+    add_definitions(-D__LINUX__)
 endif()
 
 if(CLI_CMAKE_PLATFORM_ARCH_I386)

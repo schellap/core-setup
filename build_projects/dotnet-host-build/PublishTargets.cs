@@ -21,8 +21,6 @@ namespace Microsoft.DotNet.Host.Build
 
         private static string Channel { get; set; }
 
-        private static string BranchName { get; set; }
-
         private static string SharedFrameworkNugetVersion { get; set; }
 
         private static string SharedHostNugetVersion { get; set; }
@@ -33,9 +31,8 @@ namespace Microsoft.DotNet.Host.Build
             AzurePublisherTool = new AzurePublisher();
             DebRepoPublisherTool = new DebRepoPublisher(Dirs.Packages);
             SharedFrameworkNugetVersion = c.BuildContext.Get<string>("SharedFrameworkNugetVersion");
-            SharedHostNugetVersion = c.BuildContext.Get<HostVersion>("HostVersion").LockedHostVersion;
+            SharedHostNugetVersion = c.BuildContext.Get<HostVersion>("HostVersion").LockedHostVersion.ToString();
             Channel = c.BuildContext.Get<string>("Channel");
-            BranchName = c.BuildContext.Get<string>("BranchName");
 
             return c.Success();
         }
@@ -47,6 +44,17 @@ namespace Microsoft.DotNet.Host.Build
         [Environment("PUBLISH_TO_AZURE_BLOB", "1", "true")] // This is set by CI systems
         public static BuildTargetResult Publish(BuildTargetContext c)
         {
+            return c.Success();
+        }
+
+        [Target]
+        [BuildPlatforms(BuildPlatform.Ubuntu, "14.04")]
+        public static BuildTargetResult PublishDotnetDebToolPackage(BuildTargetContext c)
+        {
+            string nugetFeedUrl = EnvVars.EnsureVariable("CLI_NUGET_FEED_URL");
+            string apiKey = EnvVars.EnsureVariable("CLI_NUGET_API_KEY");
+            NuGetUtil.PushPackages(Dirs.Packages, nugetFeedUrl, apiKey);
+
             return c.Success();
         }
 
@@ -71,9 +79,12 @@ namespace Microsoft.DotNet.Host.Build
                 }
                 else
                 {
-                    // This is an old drop of latest so remove all old files to ensure a clean state
+                    Regex versionFileRegex = new Regex(@"(?<version>\d\.\d\.\d)-(?<release>.*)?");
+
+                    // Delete old version files
                     AzurePublisherTool.ListBlobs($"{targetContainer}")
                         .Select(s => s.Replace("/dotnet/", ""))
+                        .Where(s => versionFileRegex.IsMatch(s))
                         .ToList()
                         .ForEach(f => AzurePublisherTool.TryDeleteBlob(f));
 
@@ -93,7 +104,19 @@ namespace Microsoft.DotNet.Host.Build
                     CopyBlobs($"{Channel}/Installers/{SharedHostNugetVersion}/", $"{Channel}/Installers/Latest/");
 
                     // Generate the Sharedfx Version text files
-                    List<string> versionFiles = new List<string>() { "win.x86.version", "win.x64.version", "ubuntu.x64.version", "rhel.x64.version", "osx.x64.version", "debian.x64.version", "centos.x64.version" };
+                    List<string> versionFiles = new List<string>() 
+                    {
+                        "win.x86.version",
+                        "win.x64.version",
+                        "ubuntu.x64.version",
+                        "ubuntu.16.04.x64.version",
+                        "rhel.x64.version",
+                        "osx.x64.version",
+                        "debian.x64.version",
+                        "centos.x64.version",
+                        "fedora.23.x64.version",
+                        "opensuse.13.2.x64.version"
+                    };
                     
                     PublishCoreHostPackagesToFeed();
 
@@ -130,7 +153,7 @@ namespace Microsoft.DotNet.Host.Build
             var hostBlob = $"{Channel}/Binaries/{SharedFrameworkNugetVersion}";
 
             Directory.CreateDirectory(Dirs.PackagesNoRID);
-            AzurePublisherTool.DownloadFiles(hostBlob, ".nupkg", Dirs.PackagesNoRID);
+            AzurePublisherTool.DownloadFilesWithExtension(hostBlob, ".nupkg", Dirs.PackagesNoRID);
 
             string nugetFeedUrl = EnvVars.EnsureVariable("NUGET_FEED_URL");
             string apiKey = EnvVars.EnsureVariable("NUGET_API_KEY");
@@ -138,7 +161,7 @@ namespace Microsoft.DotNet.Host.Build
 
             string githubAuthToken = EnvVars.EnsureVariable("GITHUB_PASSWORD");
             VersionRepoUpdater repoUpdater = new VersionRepoUpdater(githubAuthToken);
-            repoUpdater.UpdatePublishedVersions(Dirs.PackagesNoRID, $"build-info/dotnet/core-setup/{BranchName}/Latest").Wait();
+            repoUpdater.UpdatePublishedVersions(Dirs.PackagesNoRID, $"build-info/dotnet/core-setup/{Channel}/Latest").Wait();
         }
 
         private static bool CheckIfAllBuildsHavePublished()
@@ -148,18 +171,21 @@ namespace Microsoft.DotNet.Host.Build
                  { "sharedfx_Windows_x86", false },
                  { "sharedfx_Windows_x64", false },
                  { "sharedfx_Ubuntu_x64", false },
+                 { "sharedfx_Ubuntu_16_04_x64", false },
                  { "sharedfx_RHEL_x64", false },
                  { "sharedfx_OSX_x64", false },
                  { "sharedfx_Debian_x64", false },
-                 { "sharedfx_CentOS_x64", false }
+                 { "sharedfx_CentOS_x64", false },
+                 { "sharedfx_Fedora_23_x64", false },
+                 { "sharedfx_openSUSE_13_2_x64", false }
              };
 
             List<string> blobs = new List<string>(AzurePublisherTool.ListBlobs($"{Channel}/Binaries/{SharedFrameworkNugetVersion}/"));
 
-            var versionBadgeName = $"sharedfx_{CurrentPlatform.Current}_{CurrentArchitecture.Current}";
+            var versionBadgeName = $"sharedfx_{Monikers.GetBadgeMoniker()}";
             if (badges.ContainsKey(versionBadgeName) == false)
             {
-                throw new ArgumentException("A new OS build was added without adding the moniker to the {nameof(badges)} lookup");
+                throw new ArgumentException($"A new OS build ({versionBadgeName}) was added without adding the moniker to the {nameof(badges)} lookup");
             }
 
             foreach (string file in blobs)
@@ -188,6 +214,7 @@ namespace Microsoft.DotNet.Host.Build
         [Target(
             nameof(PublishTargets.PublishInstallerFilesToAzure),
             nameof(PublishTargets.PublishArchivesToAzure),
+            nameof(PublishTargets.PublishDotnetDebToolPackage),
             /* nameof(PublishTargets.PublishDebFilesToDebianRepo),  */ // disabled until cli repo has host build removed.
             nameof(PublishTargets.PublishCoreHostPackages),
             nameof(PublishTargets.PublishSharedFrameworkVersionBadge))]
@@ -206,7 +233,7 @@ namespace Microsoft.DotNet.Host.Build
         [Target(
             nameof(PublishSharedFrameworkDebToDebianRepo)
            /* nameof(PublishSharedHostDebToDebianRepo) //https://github.com/dotnet/cli/issues/2973 */)]
-        [BuildPlatforms(BuildPlatform.Ubuntu)]
+        [BuildPlatforms(BuildPlatform.Ubuntu, "14.04")]
         public static BuildTargetResult PublishDebFilesToDebianRepo(BuildTargetContext c)
         {
             return c.Success();
@@ -237,6 +264,11 @@ namespace Microsoft.DotNet.Host.Build
         [Target]
         public static BuildTargetResult PublishSharedHostInstallerFileToAzure(BuildTargetContext c)
         {
+            if (CurrentPlatform.IsUbuntu && !CurrentPlatform.IsVersion("14.04"))
+            {
+                return c.Success();
+            }
+
             var version = SharedHostNugetVersion;
             var installerFile = c.BuildContext.Get<string>("SharedHostInstallerFile");
 
@@ -253,6 +285,11 @@ namespace Microsoft.DotNet.Host.Build
         [Target]
         public static BuildTargetResult PublishSharedFrameworkInstallerFileToAzure(BuildTargetContext c)
         {
+            if (CurrentPlatform.IsUbuntu && !CurrentPlatform.IsVersion("14.04"))
+            {
+                return c.Success();
+            }
+
             var version = SharedFrameworkNugetVersion;
             var installerFile = c.BuildContext.Get<string>("SharedFrameworkInstallerFile");
 
@@ -265,6 +302,11 @@ namespace Microsoft.DotNet.Host.Build
         [BuildPlatforms(BuildPlatform.OSX, BuildPlatform.Windows)]
         public static BuildTargetResult PublishCombinedFrameworkHostInstallerFileToAzure(BuildTargetContext c)
         {
+            if (CurrentPlatform.IsUbuntu && !CurrentPlatform.IsVersion("14.04"))
+            {
+                return c.Success();
+            }
+
             var version = SharedFrameworkNugetVersion;
             var installerFile = c.BuildContext.Get<string>("CombinedFrameworkHostInstallerFile");
 
@@ -284,12 +326,12 @@ namespace Microsoft.DotNet.Host.Build
         }
 
         [Target]
-        [BuildPlatforms(BuildPlatform.Ubuntu)]
+        [BuildPlatforms(BuildPlatform.Ubuntu, "14.04")]
         public static BuildTargetResult PublishSharedFrameworkDebToDebianRepo(BuildTargetContext c)
         {
             var version = SharedFrameworkNugetVersion;
 
-            var packageName = Monikers.GetDebianSharedFrameworkPackageName(c);
+            var packageName = Monikers.GetDebianSharedFrameworkPackageName(version);
             var installerFile = c.BuildContext.Get<string>("SharedFrameworkInstallerFile");
             var uploadUrl = AzurePublisherTool.CalculateInstallerUploadUrl(installerFile, Channel, version);
 
@@ -302,7 +344,7 @@ namespace Microsoft.DotNet.Host.Build
         }
 
         [Target]
-        [BuildPlatforms(BuildPlatform.Ubuntu)]
+        [BuildPlatforms(BuildPlatform.Ubuntu, "14.04")]
         public static BuildTargetResult PublishSharedHostDebToDebianRepo(BuildTargetContext c)
         {
             var version = SharedHostNugetVersion;

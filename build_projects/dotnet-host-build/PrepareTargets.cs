@@ -18,9 +18,6 @@ namespace Microsoft.DotNet.Host.Build
 {
     public class PrepareTargets
     {
-        // Offset to the commit count to maintain forward version consistency after the move from CLI to Core-Setup
-        private static int CommitCountOffset = 4000;
-
         [Target(nameof(Init))]
         public static BuildTargetResult Prepare(BuildTargetContext c) => c.Success();
 
@@ -39,7 +36,8 @@ namespace Microsoft.DotNet.Host.Build
             nameof(CheckPrereqs), 
             nameof(LocateStage0), 
             nameof(ExpectedBuildArtifacts),
-            nameof(RestorePackages))]
+            nameof(RestorePackages),
+            nameof(PackDotnetDebTool))]
         public static BuildTargetResult Init(BuildTargetContext c)
         {
             var configEnv = Environment.GetEnvironmentVariable("CONFIGURATION");
@@ -61,10 +59,37 @@ namespace Microsoft.DotNet.Host.Build
         }
 
         [Target]
+        [BuildPlatforms(BuildPlatform.Ubuntu)]
+        public static BuildTargetResult PackDotnetDebTool(BuildTargetContext c)
+        {
+            var dotnet = DotNetCli.Stage0;
+            var versionSuffix = c.BuildContext.Get<BuildVersion>("BuildVersion").CommitCountString;
+
+            dotnet.Pack(
+                    Path.Combine(Dirs.RepoRoot, "tools", "dotnet-deb-tool", "project.json"),
+                    "--output", Dirs.PackagesIntermediate,
+                    "--version-suffix", versionSuffix)
+                    .Execute()
+                    .EnsureSuccessful();
+
+            var packageFiles = Directory.EnumerateFiles(Dirs.PackagesIntermediate, "dotnet-deb-tool.*.nupkg");
+
+            foreach (var packageFile in packageFiles)
+            {
+                if (!packageFile.EndsWith(".symbols.nupkg"))
+                {
+                    var destinationPath = Path.Combine(Dirs.Packages, Path.GetFileName(packageFile));
+                    File.Copy(packageFile, destinationPath, overwrite: true);
+                }
+            }
+
+            return c.Success();
+        }
+
+        [Target]
         public static BuildTargetResult GenerateVersions(BuildTargetContext c)
         {
             var commitCount = GitUtils.GetCommitCount();
-            commitCount += CommitCountOffset;
 
             var commitHash = GitUtils.GetCommitHash(); 
 
@@ -83,14 +108,12 @@ namespace Microsoft.DotNet.Host.Build
                 CommitCount = commitCount
             };
 
-            c.BuildContext["BranchName"] = branchInfo.Entries["BRANCH_NAME"];
-
             c.BuildContext["BuildVersion"] = buildVersion;
             c.BuildContext["HostVersion"] = hostVersion;
             c.BuildContext["CommitHash"] = commitHash;
             c.BuildContext["SharedFrameworkNugetVersion"] = buildVersion.NetCoreAppVersion;
 
-            c.Info($"Building Version: {hostVersion.LatestHostVersionNoSuffix} (NuGet Packages: {hostVersion.LatestHostVersion})");
+            c.Info($"Building Version: {hostVersion.LatestHostVersion.WithoutSuffix} (NuGet Packages: {hostVersion.LatestHostVersion})");
             c.Info($"From Commit: {commitHash}");
 
             return c.Success();
@@ -125,12 +148,12 @@ namespace Microsoft.DotNet.Host.Build
         public static BuildTargetResult ExpectedBuildArtifacts(BuildTargetContext c)
         {
             var config = Environment.GetEnvironmentVariable("CONFIGURATION");
-            var versionBadgeName = $"sharedfx_{CurrentPlatform.Current}_{CurrentArchitecture.Current}_{config}_version_badge.svg";
+            var versionBadgeName = $"sharedfx_{Monikers.GetBadgeMoniker()}_{config}_version_badge.svg";
             c.BuildContext["VersionBadge"] = Path.Combine(Dirs.Output, versionBadgeName);
 
             var sharedFrameworkVersion = c.BuildContext.Get<string>("SharedFrameworkNugetVersion");
-            var hostVersion = c.BuildContext.Get<HostVersion>("HostVersion").LockedHostVersion;
-            
+            var hostVersion = c.BuildContext.Get<HostVersion>("HostVersion").LockedHostVersion.ToString();
+
             AddInstallerArtifactToContext(c, "dotnet-host", "SharedHost", hostVersion);
             AddInstallerArtifactToContext(c, "dotnet-sharedframework", "SharedFramework", sharedFrameworkVersion);
             AddInstallerArtifactToContext(c, "dotnet", "CombinedFrameworkHost", sharedFrameworkVersion);
@@ -180,7 +203,7 @@ namespace Microsoft.DotNet.Host.Build
         }
 
         [Target]
-        [BuildPlatforms(BuildPlatform.Ubuntu)]
+        [BuildPlatforms(BuildPlatform.Ubuntu, "14.04")]
         public static BuildTargetResult CheckUbuntuCoreclrAndCoreFxDependencies(BuildTargetContext c)
         {
             var errorMessageBuilder = new StringBuilder();
@@ -240,10 +263,10 @@ namespace Microsoft.DotNet.Host.Build
             var dotnet = DotNetCli.Stage0;
 
             dotnet.Restore("--verbosity", "verbose", "--disable-parallel")
-                .WorkingDirectory(Path.Combine(c.BuildContext.BuildDirectory, "tools", "independent", "RuntimeGraphGenerator"))
+                .WorkingDirectory(Path.Combine(c.BuildContext.BuildDirectory, "tools"))
                 .Execute()
                 .EnsureSuccessful();
-
+                
             return c.Success();
         }
 
