@@ -112,6 +112,7 @@ namespace Microsoft.DotNet.Host.Build
             var hostVersion = c.BuildContext.Get<HostVersion>("HostVersion");
             var hostMsiVersion = hostVersion.GenerateMsiVersion();            
             var hostNugetVersion = hostVersion.LockedHostVersion.ToString();
+            var hostFxrNugetVersion = hostVersion.LockedHostFxrVersion.ToString();
             var inputDir = c.BuildContext.Get<string>("SharedHostPublishRoot");
             var wixObjRoot = Path.Combine(Dirs.Output, "obj", "wix", "sharedhost");
             var sharedHostBrandName = $"'{Monikers.SharedHostBrandName}'";
@@ -124,7 +125,7 @@ namespace Microsoft.DotNet.Host.Build
 
             Cmd("powershell", "-NoProfile", "-NoLogo",
                 Path.Combine(Dirs.RepoRoot, "packaging", "windows", "host", "generatemsi.ps1"),
-                inputDir, SharedHostMsi, WixRoot, sharedHostBrandName, hostMsiVersion, hostNugetVersion, Arch, wixObjRoot)
+                inputDir, SharedHostMsi, WixRoot, sharedHostBrandName, hostMsiVersion, hostNugetVersion, hostFxrNugetVersion, Arch, wixObjRoot)
                     .Execute()
                     .EnsureSuccessful();
             return c.Success();
