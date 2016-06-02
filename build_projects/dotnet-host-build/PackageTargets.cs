@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.IO.Compression;
 using System.Runtime.InteropServices;
 using Microsoft.DotNet.Cli.Build;
@@ -59,9 +60,13 @@ namespace Microsoft.DotNet.Host.Build
 
             Directory.CreateDirectory(sharedHostRoot);
 
-            foreach (var file in Directory.GetFiles(Dirs.SharedFrameworkPublish, "*", SearchOption.TopDirectoryOnly))
+            string srcHostDir = Path.Combine(Dirs.SharedFrameworkPublish, "host");
+            string destHostDir = Path.Combine(sharedHostRoot, "host");
+            foreach (var file in Directory.GetFiles(Dirs.SharedFrameworkPublish, "*", SearchOption.TopDirectoryOnly)
+                         .Concat(Directory.GetFiles(srcHostDir, "*", SearchOption.AllDirectories)))
             {
                 var destFile = file.Replace(Dirs.SharedFrameworkPublish, sharedHostRoot);
+                Directory.CreateDirectory(Path.GetDirectoryName(destFile));
                 File.Copy(file, destFile, true);
                 c.Warn(destFile);
             }
