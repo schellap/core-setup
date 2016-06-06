@@ -350,6 +350,15 @@ bool deps_resolver_t::probe_deps_entry(const deps_entry_t& entry, const pal::str
     {
         return true;
     }
+    // This could potentially happen if the app specified version of the assembly
+    // was not found in:
+    //     1. Any probing paths
+    //     2. App Base
+    // In this case, we give the FX version of the assembly a shot as a last resort.
+    if (m_portable && entry.to_dir_path(m_fx_dir, candidate))
+    {
+        return true;
+    }
     return false;
 }
 
