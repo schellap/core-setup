@@ -25,7 +25,7 @@ namespace Microsoft.DotNet.Cli.Build
         private string _corehostLockedDirectory;
         private string _corehostLatestDirectory;
 
-        private Crossgen _crossgenUtil = new Crossgen(DependencyVersions.CoreCLRVersion);
+        private Crossgen _crossgenUtil = new Crossgen(DependencyVersions.CoreCLRVersion, DependencyVersions.JitVersion);
         private string _corehostPackageSource;
 
         public SharedFrameworkPublisher(
@@ -121,13 +121,6 @@ namespace Microsoft.DotNet.Cli.Build
 
             CopyHostArtifactsToSharedFramework(sharedFrameworkNameAndVersionRoot);
             
-            if (File.Exists(Path.Combine(sharedFrameworkNameAndVersionRoot, "mscorlib.ni.dll")))
-            {
-                // Publish already places the crossgen'd version of mscorlib into the output, so we can
-                // remove the IL version
-                File.Delete(Path.Combine(sharedFrameworkNameAndVersionRoot, "mscorlib.dll"));
-            }
-
             _crossgenUtil.CrossgenDirectory(sharedFrameworkNameAndVersionRoot, sharedFrameworkNameAndVersionRoot);
 
             // Generate .version file for sharedfx
