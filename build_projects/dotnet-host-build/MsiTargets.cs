@@ -90,6 +90,7 @@ namespace Microsoft.DotNet.Host.Build
 
         [Target(nameof(MsiTargets.InitMsi),
         nameof(GenerateDotnetSharedHostMsi),
+        nameof(GenerateDotnetSharedHostFxrMsi),
         nameof(GenerateDotnetSharedFrameworkMsi))]
         [BuildPlatforms(BuildPlatform.Windows)]
         public static BuildTargetResult GenerateMsis(BuildTargetContext c)
@@ -125,7 +126,32 @@ namespace Microsoft.DotNet.Host.Build
 
             Cmd("powershell", "-NoProfile", "-NoLogo",
                 Path.Combine(Dirs.RepoRoot, "packaging", "windows", "host", "generatemsi.ps1"),
-                inputDir, SharedHostMsi, WixRoot, sharedHostBrandName, hostMsiVersion, hostNugetVersion, hostFxrNugetVersion, Arch, wixObjRoot)
+                inputDir, SharedHostMsi, WixRoot, sharedHostBrandName, hostMsiVersion, hostNugetVersion, Arch, wixObjRoot)
+                    .Execute()
+                    .EnsureSuccessful();
+            return c.Success();
+        }
+
+        [Target]
+        [BuildPlatforms(BuildPlatform.Windows)]
+        public static BuildTargetResult GenerateDotnetSharedHostFxrMsi(BuildTargetContext c)
+        {
+            var hostVersion = c.BuildContext.Get<HostVersion>("HostVersion");
+            var hostFxrMsiVersion = hostVersion.GenerateMsiVersion();            
+            var hostFxrNugetVersion = hostVersion.LockedHostFxrVersion.ToString();
+            var inputDir = c.BuildContext.Get<string>("SharedHostPublishRoot");
+            var wixObjRoot = Path.Combine(Dirs.Output, "obj", "wix", "sharedhostfxr");
+            var sharedHostBrandName = $"'{Monikers.SharedHostBrandName}'";
+
+            if (Directory.Exists(wixObjRoot))
+            {
+                Utils.DeleteDirectory(wixObjRoot);
+            }
+            Directory.CreateDirectory(wixObjRoot);
+
+            Cmd("powershell", "-NoProfile", "-NoLogo",
+                Path.Combine(Dirs.RepoRoot, "packaging", "windows", "host", "generatemsi.ps1"),
+                inputDir, SharedHostMsi, WixRoot, sharedHostBrandName, hostFxrMsiVersion, hostFxrNugetVersion, Arch, wixObjRoot)
                     .Execute()
                     .EnsureSuccessful();
             return c.Success();
