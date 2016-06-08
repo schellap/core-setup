@@ -63,7 +63,7 @@ void handle_missing_framework_error(const pal::string_t& fx_name, const pal::str
  * Resolve the hostpolicy version from deps.
  *  - Scan the deps file's libraries section and find the hostpolicy version in the file.
  */
-bool resolve_hostpolicy_identity_from_deps(const pal::string_t& deps_json, package_identity_t* package)
+bool resolve_hostpolicy_identity_from_deps(const pal::string_t& deps_json, hostpolicy_identity_t* package)
 {
     trace::verbose(_X("--- Resolving %s version from deps json [%s]"), LIBHOSTPOLICY_NAME, deps_json.c_str());
 
@@ -71,14 +71,14 @@ bool resolve_hostpolicy_identity_from_deps(const pal::string_t& deps_json, packa
     if (!pal::file_exists(deps_json))
     {
         trace::verbose(_X("Dependency manifest [%s] does not exist"), deps_json.c_str());
-        return retval;
+        return false;
     }
 
     pal::ifstream_t file(deps_json);
     if (!file.good())
     {
         trace::verbose(_X("Dependency manifest [%s] could not be opened"), deps_json.c_str());
-        return retval;
+        return false;
     }
 
     if (skip_utf8_bom(&file))
@@ -106,7 +106,8 @@ bool resolve_hostpolicy_identity_from_deps(const pal::string_t& deps_json, packa
                 package->name = name;
                 package->rid = rid;
                 package->version = library.first.substr(prefix.size());
-                break;
+                trace::verbose(_X("Resolved version %s/%s/%s from dependency manifest file [%s]"), package->name.c_str(), package->rid.c_str(), package->version.c_str(), deps_json.c_str());
+                return true;
             }
         }
     }
@@ -116,8 +117,7 @@ bool resolve_hostpolicy_identity_from_deps(const pal::string_t& deps_json, packa
         (void)pal::utf8_palstring(je.what(), &jes);
         trace::error(_X("A JSON parsing exception occurred in [%s]: %s"), deps_json.c_str(), jes.c_str());
     }
-    trace::verbose(_X("Resolved version %s/%s/%s from dependency manifest file [%s]"), package->name.c_str(), package->rid.c_str(), package->version.c_str(), deps_json.c_str());
-    return retval;
+    return false;
 }
 
 /**
@@ -148,7 +148,7 @@ bool is_hostpolicy_runtime_package(const pal::string_t& package_name, pal::strin
  * Given a directory and a version, find if the package relative
  *     dir under the given directory contains hostpolicy.dll
  */
-bool to_hostpolicy_package_dir(const pal::string_t& dir, const package_identity_t& package, pal::string_t* candidate)
+bool to_hostpolicy_package_dir(const pal::string_t& dir, const hostpolicy_identity_t& package, pal::string_t* candidate)
 {
     assert(!version.empty());
 
@@ -157,7 +157,7 @@ bool to_hostpolicy_package_dir(const pal::string_t& dir, const package_identity_
     // Ensure the relative dir contains platform directory separators.
     pal::string_t rel_dir = _X("runtimes");
     append_path(&rel_dir, package->rid.c_str());
-    append_path(&rel_dir, "native");
+    append_path(&rel_dir, _X("native"));
 
     // Construct the path to directory containing hostpolicy.
     pal::string_t path = dir;
@@ -183,13 +183,13 @@ bool to_hostpolicy_package_dir(const pal::string_t& dir, const package_identity_
  * Given a nuget version, detect if a serviced hostpolicy is available at
  *   platform servicing location.
  */
-bool hostpolicy_exists_in_svc(const package_identity_t& package, pal::string_t* resolved_dir)
+bool hostpolicy_exists_in_svc(const hostpolicy_identity_t& package, pal::string_t* resolved_dir)
 {
     pal::string_t svc_dir;
     pal::get_default_servicing_directory(&svc_dir);
     append_path(&svc_dir, _X("pkgs"));
 
-    package_identity_t own_rid_package;
+    hostpolicy_identity_t own_rid_package;
     own_rid_package.name = _STRINGIFY(HOST_POLICY_PKG_NAME);
     own_rid_package.rid = _STRINGIFY(HOST_POLICY_PKG_RID);
     own_rid_package.version = package.version;
@@ -287,7 +287,7 @@ bool fx_muxer_t::resolve_hostpolicy_dir(host_mode_t mode,
     pal::string_t resolved_deps = get_deps_file(fx_dir, app_candidate, specified_deps_file, config);
 
     // Resolve hostpolicy version out of the deps file.
-    package_identity_t package;
+    hostpolicy_identity_t package;
     bool id_resolved = resolve_hostpolicy_identity_from_deps(resolved_deps, &package);
     if (trace::is_enabled() && !resolved && pal::file_exists(resolved_deps))
     {
