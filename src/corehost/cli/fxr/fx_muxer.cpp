@@ -148,7 +148,7 @@ bool is_hostpolicy_runtime_package(const pal::string_t& package_name, pal::strin
  * Given a directory and a version, find if the package relative
  *     dir under the given directory contains hostpolicy.dll
  */
-bool to_hostpolicy_package_dir(const pal::string_t& dir, const package_identity_t* package, const pal::string_t& version, pal::string_t* candidate)
+bool to_hostpolicy_package_dir(const pal::string_t& dir, const package_identity_t& package, pal::string_t* candidate)
 {
     assert(!version.empty());
 
@@ -189,9 +189,12 @@ bool hostpolicy_exists_in_svc(const package_identity_t& package, pal::string_t* 
     pal::get_default_servicing_directory(&svc_dir);
     append_path(&svc_dir, _X("pkgs"));
 
-    package_identity_t own_rid_package = package;
+    package_identity_t own_rid_package;
+    own_rid_package.name = _STRINGIFY(HOST_POLICY_PKG_NAME);
     own_rid_package.rid = _STRINGIFY(HOST_POLICY_PKG_RID);
-    return to_hostpolicy_package_dir(svc_dir, own_rid_package, version, resolved_dir);
+    own_rid_package.version = package.version;
+
+    return to_hostpolicy_package_dir(svc_dir, own_rid_package, resolved_dir);
 }
 
 /**
@@ -218,7 +221,7 @@ pal::string_t get_deps_from_app_binary(const pal::string_t& app)
  * Given a version and probing paths, find if package layout
  *    directory containing hostpolicy exists.
  */
-bool resolve_hostpolicy_dir_from_probe_paths(const pal::string_t& package_name, const pal::string_t& version, const std::vector<pal::string_t>& probe_realpaths, pal::string_t* candidate)
+bool resolve_hostpolicy_dir_from_probe_paths(const package_identity& package, const std::vector<pal::string_t>& probe_realpaths, pal::string_t* candidate)
 {
     if (probe_realpaths.empty() || version.empty())
     {
@@ -229,7 +232,7 @@ bool resolve_hostpolicy_dir_from_probe_paths(const pal::string_t& package_name, 
     for (const auto& probe_path : probe_realpaths)
     {
         trace::verbose(_X("Considering %s to probe for %s"), probe_path.c_str(), LIBHOSTPOLICY_NAME);
-        if (to_hostpolicy_package_dir(probe_path, package_name, version, candidate))
+        if (to_hostpolicy_package_dir(probe_path, package, candidate))
         {
             return true;
         }
@@ -285,14 +288,14 @@ bool fx_muxer_t::resolve_hostpolicy_dir(host_mode_t mode,
 
     // Resolve hostpolicy version out of the deps file.
     package_identity_t package;
-    resolve_hostpolicy_identity_from_deps(resolved_deps, &package);
-    if (trace::is_enabled() && version.empty() && pal::file_exists(resolved_deps))
+    bool id_resolved = resolve_hostpolicy_identity_from_deps(resolved_deps, &package);
+    if (trace::is_enabled() && !resolved && pal::file_exists(resolved_deps))
     {
         trace::warning(_X("Dependency manifest %s does not contain an entry for %s"), resolved_deps.c_str(), _STRINGIFY(HOST_POLICY_PKG_NAME));
     }
 
     // Check if the given version of the hostpolicy exists in servicing.
-    if (hostpolicy_exists_in_svc(package, impl_dir))
+    if (id_resolved && hostpolicy_exists_in_svc(package, impl_dir))
     {
         return true;
     }
@@ -334,7 +337,7 @@ bool fx_muxer_t::resolve_hostpolicy_dir(host_mode_t mode,
 
     // Start probing for hostpolicy in the specified probe paths.
     pal::string_t candidate;
-    if (resolve_hostpolicy_dir_from_probe_paths(version, probe_realpaths, &candidate))
+    if (id_resolved && resolve_hostpolicy_dir_from_probe_paths(package, probe_realpaths, &candidate))
     {
         impl_dir->assign(candidate);
         return true;
