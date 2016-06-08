@@ -15,6 +15,13 @@
 #include "deps_format.h"
 
 
+struct hostpolicy_identity_t
+{
+    pal::string_t name;
+    pal::string_t version;
+    pal::string_t rid;
+};
+
 static const pal::char_t* s_dotnet_sdk_download_url = _X("http://go.microsoft.com/fwlink/?LinkID=798306&clcid=0x409");
 
 /**
@@ -56,7 +63,7 @@ void handle_missing_framework_error(const pal::string_t& fx_name, const pal::str
  * Resolve the hostpolicy version from deps.
  *  - Scan the deps file's libraries section and find the hostpolicy version in the file.
  */
-pal::string_t resolve_hostpolicy_version_from_deps(const pal::string_t& deps_json)
+bool resolve_hostpolicy_identity_from_deps(const pal::string_t& deps_json, package_identity_t* package)
 {
     trace::verbose(_X("--- Resolving %s version from deps json [%s]"), LIBHOSTPOLICY_NAME, deps_json.c_str());
 
@@ -85,15 +92,20 @@ pal::string_t resolve_hostpolicy_version_from_deps(const pal::string_t& deps_jso
         const auto& json = root.as_object();
         const auto& libraries = json.at(_X("libraries")).as_object();
 
-        // Look up the root package instead of the "runtime" package because we can't do a full rid resolution.
-        // i.e., look for "Microsoft.NETCore.DotNetHostPolicy/" followed by version.
-        pal::string_t prefix = _X("Microsoft.NETCore.DotNetHostPolicy/");
+        pal::string_t rid;
         for (const auto& library : libraries)
         {
-            if (starts_with(library.first, prefix, false))
+            size_t pos = library.first.find(_X("/"));
+            if (pos == pal::string_t::npos)
             {
-                // Extract the version information that occurs after '/'
-                retval = library.first.substr(prefix.size());
+                continue;
+            }
+            pal::string_t name = library.first.substr(0, pos);
+            if (is_hostpolicy_runtime_package(name, &rid))
+            {
+                package->name = name;
+                package->rid = rid;
+                package->version = library.first.substr(prefix.size());
                 break;
             }
         }
@@ -104,31 +116,53 @@ pal::string_t resolve_hostpolicy_version_from_deps(const pal::string_t& deps_jso
         (void)pal::utf8_palstring(je.what(), &jes);
         trace::error(_X("A JSON parsing exception occurred in [%s]: %s"), deps_json.c_str(), jes.c_str());
     }
-    trace::verbose(_X("Resolved version %s from dependency manifest file [%s]"), retval.c_str(), deps_json.c_str());
+    trace::verbose(_X("Resolved version %s/%s/%s from dependency manifest file [%s]"), package->name.c_str(), package->rid.c_str(), package->version.c_str(), deps_json.c_str());
     return retval;
+}
+
+/**
+ *
+ *  Given a package name, return "true" if it is the hostpolicy runtime package name
+ *  and if so, return the rid that is matched in the package name.
+ */
+bool is_hostpolicy_runtime_package(const pal::string_t& package_name, pal::string_t* rid)
+{
+    static const pal::string_t runtime_prefix = _X("runtime.");
+    static const pal::string_t package_suffix = _X(".Microsoft.NETCore.DotNetHostPolicy");
+
+    // Quick checks for prefix and suffix.
+    if (!starts_with(package_name, runtime_prefix, false) ||
+        !ends_with(package_name, package_suffix, false))
+    {
+        return false;
+    }
+
+    // Extract the RID stripping the prefix and suffix.
+    pal::string_t rid_start = runtime_prefix.size();
+    pal::string_t rid_len = package_name.size() - runtime_prefix.size() - package_suffix.size();
+    *rid = package_name.substr(rid_start, rid_len);
+    return true;
 }
 
 /**
  * Given a directory and a version, find if the package relative
  *     dir under the given directory contains hostpolicy.dll
  */
-bool to_hostpolicy_package_dir(const pal::string_t& dir, const pal::string_t& version, pal::string_t* candidate)
+bool to_hostpolicy_package_dir(const pal::string_t& dir, const package_identity_t* package, const pal::string_t& version, pal::string_t* candidate)
 {
     assert(!version.empty());
 
     candidate->clear();
 
     // Ensure the relative dir contains platform directory separators.
-    pal::string_t rel_dir = _STRINGIFY(HOST_POLICY_PKG_REL_DIR);
-    if (DIR_SEPARATOR != '/')
-    {
-        replace_char(&rel_dir, '/', DIR_SEPARATOR);
-    }
+    pal::string_t rel_dir = _X("runtimes");
+    append_path(&rel_dir, package->rid.c_str());
+    append_path(&rel_dir, "native");
 
     // Construct the path to directory containing hostpolicy.
     pal::string_t path = dir;
-    append_path(&path, _STRINGIFY(HOST_POLICY_PKG_NAME)); // package name
-    append_path(&path, version.c_str());                  // package version
+    append_path(&path, package->name.c_str());            // package name
+    append_path(&path, package->version.c_str());         // package version
     append_path(&path, rel_dir.c_str());                  // relative dir containing hostpolicy library
 
     // Check if "path" contains the required library.
@@ -149,17 +183,15 @@ bool to_hostpolicy_package_dir(const pal::string_t& dir, const pal::string_t& ve
  * Given a nuget version, detect if a serviced hostpolicy is available at
  *   platform servicing location.
  */
-bool hostpolicy_exists_in_svc(const pal::string_t& version, pal::string_t* resolved_dir)
+bool hostpolicy_exists_in_svc(const package_identity_t& package, pal::string_t* resolved_dir)
 {
-    if (version.empty())
-    {
-        return false;
-    }
-
     pal::string_t svc_dir;
     pal::get_default_servicing_directory(&svc_dir);
     append_path(&svc_dir, _X("pkgs"));
-    return to_hostpolicy_package_dir(svc_dir, version, resolved_dir);
+
+    package_identity_t own_rid_package = package;
+    own_rid_package.rid = _STRINGIFY(HOST_POLICY_PKG_RID);
+    return to_hostpolicy_package_dir(svc_dir, own_rid_package, version, resolved_dir);
 }
 
 /**
@@ -186,7 +218,7 @@ pal::string_t get_deps_from_app_binary(const pal::string_t& app)
  * Given a version and probing paths, find if package layout
  *    directory containing hostpolicy exists.
  */
-bool resolve_hostpolicy_dir_from_probe_paths(const pal::string_t& version, const std::vector<pal::string_t>& probe_realpaths, pal::string_t* candidate)
+bool resolve_hostpolicy_dir_from_probe_paths(const pal::string_t& package_name, const pal::string_t& version, const std::vector<pal::string_t>& probe_realpaths, pal::string_t* candidate)
 {
     if (probe_realpaths.empty() || version.empty())
     {
@@ -197,7 +229,7 @@ bool resolve_hostpolicy_dir_from_probe_paths(const pal::string_t& version, const
     for (const auto& probe_path : probe_realpaths)
     {
         trace::verbose(_X("Considering %s to probe for %s"), probe_path.c_str(), LIBHOSTPOLICY_NAME);
-        if (to_hostpolicy_package_dir(probe_path, version, candidate))
+        if (to_hostpolicy_package_dir(probe_path, package_name, version, candidate))
         {
             return true;
         }
@@ -252,14 +284,15 @@ bool fx_muxer_t::resolve_hostpolicy_dir(host_mode_t mode,
     pal::string_t resolved_deps = get_deps_file(fx_dir, app_candidate, specified_deps_file, config);
 
     // Resolve hostpolicy version out of the deps file.
-    pal::string_t version = resolve_hostpolicy_version_from_deps(resolved_deps);
+    package_identity_t package;
+    resolve_hostpolicy_identity_from_deps(resolved_deps, &package);
     if (trace::is_enabled() && version.empty() && pal::file_exists(resolved_deps))
     {
         trace::warning(_X("Dependency manifest %s does not contain an entry for %s"), resolved_deps.c_str(), _STRINGIFY(HOST_POLICY_PKG_NAME));
     }
 
     // Check if the given version of the hostpolicy exists in servicing.
-    if (hostpolicy_exists_in_svc(version, impl_dir))
+    if (hostpolicy_exists_in_svc(package, impl_dir))
     {
         return true;
     }
