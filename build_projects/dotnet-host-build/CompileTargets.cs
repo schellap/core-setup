@@ -89,8 +89,8 @@ namespace Microsoft.DotNet.Host.Build
             var majorVersion = hostVer.Major;
             var minorVersion = hostVer.Minor;
             var patchVersion = hostVer.Patch;
-            var buildNumberMajor = hostVer.BuildMajor;
-            var buildNumberMinor = hostVer.BuildMinor;
+            var buildNumberMajor = hostVer.MsiBuildMajor;
+            var buildNumberMinor = hostVer.MsiBuildMinor;
             var buildDetails = $"{semVer}, {commitHash} built by: {System.Environment.MachineName}, UTC: {DateTime.UtcNow.ToString()}";
             var rcContent = $@"
 #include <Windows.h>
@@ -269,7 +269,8 @@ namespace Microsoft.DotNet.Host.Build
             msbuildProps.AppendLine($"    <HostPolicyVersion>{hostVersion.LatestHostVersion.WithoutSuffix}</HostPolicyVersion>");
             msbuildProps.AppendLine($"    <BuildNumberMajor>{hostVersion.LatestHostBuildMajor}</BuildNumberMajor>");
             msbuildProps.AppendLine($"    <BuildNumberMinor>{hostVersion.LatestHostBuildMinor}</BuildNumberMinor>");
-            msbuildProps.AppendLine($"    <PreReleaseLabel>{hostVersion.LatestHostPrerelease}</PreReleaseLabel>");
+            msbuildProps.AppendLine($"    <PreReleaseLabel>{hostVersion.ReleaseSuffix}</PreReleaseLabel>");
+            msbuildProps.AppendLine($"    <EnsureStableVersion>{hostVersion.EnsureStableVersion}</EnsureStableVersion>");
             msbuildProps.AppendLine("  </PropertyGroup>");
             msbuildProps.AppendLine("</Project>");
 
