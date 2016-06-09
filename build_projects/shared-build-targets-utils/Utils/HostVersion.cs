@@ -18,8 +18,9 @@ namespace Microsoft.DotNet.Cli.Build
             public string Release;
             public string BuildMajor;
             public string BuildMinor;
+            public string CommitCountString;
 
-            public VerInfo(int major, int minor, int patch, string release, string buildMajor, string buildMinor)
+            public VerInfo(int major, int minor, int patch, string release, string buildMajor, string buildMinor, string commitCountString)
             {
                 Major = major;
                 Minor = minor;
@@ -27,9 +28,13 @@ namespace Microsoft.DotNet.Cli.Build
                 Release = release;
                 BuildMajor = buildMajor;
                 BuildMinor = buildMinor;
+                CommitCountString = commitCountString;
             }
 
             public string WithoutSuffix => $"{Major}.{Minor}.{Patch}";
+
+            public string MsiBuildMajor => BuildMajor.Length > 0 ? BuildMajor : CommitCountString;
+            public string MsiBuildMinor => BuildMinor.Length > 0 ? BuildMinor : "00";
 
             public override string ToString()
             {
@@ -49,11 +54,12 @@ namespace Microsoft.DotNet.Cli.Build
         //
 
         // Full versions and package information.
-        public string LatestHostBuildMajor => CommitCountString;
-        public string LatestHostBuildMinor => "00";
-        public VerInfo LatestHostVersion => new VerInfo(1, 0, 1, ReleaseSuffix, LatestHostBuildMajor, LatestHostBuildMinor);
-        public VerInfo LatestHostFxrVersion => new VerInfo(1, 0, 1, ReleaseSuffix, LatestHostBuildMajor, LatestHostBuildMinor);
-        public VerInfo LatestHostPolicyVersion => new VerInfo(1, 0, 1, ReleaseSuffix, LatestHostBuildMajor, LatestHostBuildMinor);
+        public bool EnsureStableVersion => true;
+        public string LatestHostBuildMajor => "";
+        public string LatestHostBuildMinor => "";
+        public VerInfo LatestHostVersion => new VerInfo(1, 0, 1, "", "", "", CommitCountString);
+        public VerInfo LatestHostFxrVersion => new VerInfo(1, 0, 1, "", "", "", CommitCountString);
+        public VerInfo LatestHostPolicyVersion => new VerInfo(1, 0, 1, "", "", "", CommitCountString);
         public Dictionary<string, VerInfo> LatestHostPackages => new Dictionary<string, VerInfo>()
         {
             { "Microsoft.NETCore.DotNetHost", LatestHostVersion },
