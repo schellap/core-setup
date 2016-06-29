@@ -93,16 +93,7 @@ int run(const int argc, const pal::char_t* argv[])
     return code;
 }
 
-static char sccsid[] = "@(#)"            \
-                       "version: "       \
-                       HOST_PKG_VER      \
-                       "; commit: "      \
-                       REPO_COMMIT_HASH  \
-                       "; built: "       \
-                       __DATE__          \
-                       " "               \
-                       __TIME__          \
-                       ;
+static char sccsid[] ATTR_USED = MAKE_SCCSID(HOST_PKG_VER, REPO_COMMIT_HASH);
 
 #if defined(_WIN32)
 int __cdecl wmain(const int argc, const pal::char_t* argv[])

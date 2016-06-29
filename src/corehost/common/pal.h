@@ -29,7 +29,7 @@
 #define PATH_SEPARATOR L';'
 #define PATH_MAX MAX_PATH
 #define _X(s) L ## s
-
+#define ATTR_USED
 #else
 
 #include <cstdlib>
@@ -41,6 +41,7 @@
 #define DIR_SEPARATOR '/'
 #define PATH_SEPARATOR ':'
 #define _X(s) s
+#define ATTR_USED __attribute__((used))
 
 #define S_OK        0x00000000
 #define E_NOTIMPL   0x80004001

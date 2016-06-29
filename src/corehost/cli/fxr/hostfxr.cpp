@@ -76,15 +76,7 @@ int execute_app(
     return code;
 }
 
-static char sccsid[] = "@(#)"            \
-                       HOST_PKG_VER      \
-                       "; Commit Hash: " \
-                       REPO_COMMIT_HASH  \
-                       "; Built on: "    \
-                       __DATE__          \
-                       " "               \
-                       __TIME__          \
-                       ;
+static char sccsid[] ATTR_USED = MAKE_SCCSID(HOST_FXR_PKG_VER, REPO_COMMIT_HASH);
 
 SHARED_API int hostfxr_main(const int argc, const pal::char_t* argv[])
 {
