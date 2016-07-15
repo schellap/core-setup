@@ -54,6 +54,10 @@ add_definitions(-D_NO_ASYNCRTIMP)
 add_definitions(-D_NO_PPLXIMP)
 add_definitions(-DCOREHOST_MAKE_DLL=1)
 
+if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -lcrypto -lssl")
+endif()
+
 set(RESOURCES)
 if(WIN32)
     list(APPEND RESOURCES ../native.rc)

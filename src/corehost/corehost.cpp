@@ -86,7 +86,7 @@ int run(const int argc, const pal::char_t* argv[])
     return code;
 }
 
-static char sccsid[] = "@(#)"            \
+static char sccsid[] = "``@(#)"            \
                        "version: "       \
                        HOST_PKG_VER      \
                        "; commit: "      \
@@ -95,6 +95,7 @@ static char sccsid[] = "@(#)"            \
                        __DATE__          \
                        " "               \
                        __TIME__          \
+                       "''"              \
                        ;
 
 #if defined(_WIN32)

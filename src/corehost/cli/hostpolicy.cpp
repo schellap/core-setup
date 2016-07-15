@@ -12,11 +12,41 @@
 #include "libhost.h"
 #include "error_codes.h"
 #include "breadcrumbs.h"
+#include <openssl/sha.h>
 
 hostpolicy_init_t g_init;
 
+int calc_sha256 (char* path, char output[65])
+{
+    FILE* file = fopen(path, "rb");
+    if(!file) return -1;
+
+    char hash[SHA256_DIGEST_LENGTH];
+    SHA256_CTX sha256;
+    SHA256_Init(&sha256);
+    const int bufSize = 32768;
+    char* buffer = (char*) malloc(bufSize);
+    int bytesRead = 0;
+    if(!buffer) return -1;
+    while((bytesRead = fread(buffer, 1, bufSize, file)))
+    {
+        SHA256_Update(&sha256, buffer, bytesRead);
+    }
+//    SHA256_Final(hash, &sha256);
+
+    //sha256_hash_string(hash, output);
+    fclose(file);
+    free(buffer);
+    return 0;
+}      
+
 int run(const arguments_t& args)
 {
+
+    char output[65] = {0};
+    calc_sha256("/usr/bin/curl", output);
+    printf("hash: %s\n", output);
+
     // Load the deps resolver
     deps_resolver_t resolver(g_init, args);
 
