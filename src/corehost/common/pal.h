@@ -125,6 +125,7 @@ namespace pal
     bool utf8_palstring(const std::string& str, pal::string_t* out);
     bool pal_clrstring(const pal::string_t& str, std::vector<char>* out);
     bool clr_palstring(const char* cstr, pal::string_t* out);
+
 #else
     #ifdef COREHOST_MAKE_DLL
         #define SHARED_API extern "C"
@@ -174,6 +175,7 @@ namespace pal
     inline bool utf8_palstring(const std::string& str, pal::string_t* out) { out->assign(str); return true; }
     inline bool pal_clrstring(const pal::string_t& str, std::vector<char>* out) { out->assign(str.begin(), str.end()); out->push_back('\0'); return true; }
     inline bool clr_palstring(const char* cstr, pal::string_t* out) { out->assign(cstr); return true; }
+
 #endif
 
 #if defined(__APPLE__)
@@ -205,8 +207,8 @@ namespace pal
     proc_t get_symbol(dll_t library, const char* name);
     void unload_library(dll_t library);
 
-#if FEATURE_BINDING_CHECK
-    bool validate_binding(const string_t& own_dll);
+#if FEATURE_APPHOST
+    bool get_exe_binding(pal::string_t* binding_str);
 #endif
 }
 

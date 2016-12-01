@@ -9,15 +9,6 @@
 #define _STRINGIFY(s) _X(s)
 #define DOTNET_CORE_URL _X("http://go.microsoft.com/fwlink/?LinkID=798306&clcid=0x409")
 
-template <typename T>
-class at_scope_exit
-{
-public:
-    const T& l;
-    at_scope_exit(const T& l) : l(l) { }
-    ~at_scope_exit() { l(); }
-}; 
-
 bool ends_with(const pal::string_t& value, const pal::string_t& suffix, bool match_case);
 bool starts_with(const pal::string_t& value, const pal::string_t& prefix, bool match_case);
 pal::string_t get_executable(const pal::string_t& filename);
@@ -41,4 +32,9 @@ bool parse_known_args(
     std::unordered_map<pal::string_t, std::vector<pal::string_t>>* opts,
     int* num_args);
 bool skip_utf8_bom(pal::ifstream_t* stream);
+
+#ifdef FEATURE_APPHOST
+bool is_exe_enabled_for_execution(const pal::string_t& own_path);
+#endif
+
 #endif

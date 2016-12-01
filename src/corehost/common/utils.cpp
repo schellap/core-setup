@@ -252,3 +252,33 @@ bool skip_utf8_bom(pal::ifstream_t* stream)
 
     return true;
 }
+
+#ifdef FEATURE_APPHOST
+bool is_exe_enabled_for_execution(const pal::string_t& own_path)
+{
+    pal::string_t binding;
+    if (!pal::get_exe_binding(&binding))
+    {
+        trace::info(_X("The binding resource string in own exe could not be obtained."));
+        return false;
+    }
+
+    trace::info(_X("The binding resource string in own exe is %s"), binding.c_str());
+
+    // We are splitting the baseline string into two parts so it doesn't occur multiple times in the binary.
+    // The string is supposed to be replaced by editing the binary. So multiple replacements should not happen.
+    pal::string_t hi_part = _X("c3ab8ff13720e8ad9047dd39466b3c89");
+    pal::string_t lo_part = _X("74e592c2fa383d4a3960714caef0c4f2");
+
+    if (binding == (hi_part + lo_part))
+    {
+        trace::error(_X("This executable was not bound to a managed DLL by replacing the binding resource string. The current value is: %s"), binding.c_str());
+        return false;
+    }
+
+    pal::string_t own_name = get_filename(own_path);
+    pal::string_t own_dll_filename = get_executable(own_name) + _X(".dll");
+
+    return (pal::strcasecmp(own_dll_filename.c_str(), binding.c_str()) == 0);
+}
+#endif
