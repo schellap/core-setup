@@ -12,6 +12,7 @@ struct hostfxr_interface_t
     const pal::char_t* exe_version;
     const pal::char_t* exe_commit;
     const pal::char_t* exe_type;
+    const pal::char_t* exe_binding;
     // !! WARNING / WARNING / WARNING / WARNING / WARNING / WARNING / WARNING / WARNING / WARNING
     // !! 1. Only append to this structure to maintain compat.
     // !! 2. Any nested structs should not use compiler specific padding (pack with _HOSTFXR_INTERFACE_PACK)
@@ -27,7 +28,8 @@ static_assert(offsetof(hostfxr_interface_t, version_hi) == 1 * sizeof(size_t), "
 static_assert(offsetof(hostfxr_interface_t, exe_version) == 2 * sizeof(size_t), "Struct offset breaks backwards compatibility");
 static_assert(offsetof(hostfxr_interface_t, exe_commit) == 3 * sizeof(size_t), "Struct offset breaks backwards compatibility");
 static_assert(offsetof(hostfxr_interface_t, exe_type) == 4 * sizeof(size_t), "Struct offset breaks backwards compatibility");
-static_assert(sizeof(hostfxr_interface_t) == 5 * sizeof(size_t), "Did you add static asserts for the newly added fields?");
+static_assert(offsetof(hostfxr_interface_t, exe_binding) == 5 * sizeof(size_t), "Struct offset breaks backwards compatibility");
+static_assert(sizeof(hostfxr_interface_t) == 6 * sizeof(size_t), "Did you add static asserts for the newly added fields?");
 
 #define HOSTFXR_INTERFACE_LAYOUT_VERSION_HI 0x16071301 // YYMMDD:nn always increases when layout breaks compat.
 #define HOSTFXR_INTERFACE_LAYOUT_VERSION_LO sizeof(hostfxr_interface_t)
@@ -38,5 +40,6 @@ struct hostfxr_init_t
     pal::string_t exe_version;
     pal::string_t exe_commit;
     pal::string_t exe_type;
+    pal::string_t exe_binding;
 };
 

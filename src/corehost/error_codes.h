@@ -30,5 +30,6 @@ enum StatusCode
     CoreHostLibSymbolFailure    = 0x80008095,
     LibHostAppValidationFailure = 0x80008096,
     LibHostEntrypointExeFailure = 0x80008097,
+    AppHostExeNotBoundFailure   = 0x80008098,
 };
 #endif // __ERROR_CODES_H__

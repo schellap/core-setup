@@ -252,3 +252,24 @@ bool skip_utf8_bom(pal::ifstream_t* stream)
 
     return true;
 }
+
+#ifdef FEATURE_BINDING_CHECK
+bool is_exe_enabled_for_execution(const pal::char_t* buf)
+{
+    trace::info(_X("The binding resource string in own exe is %s"), buf);
+
+    // We are splitting the baseline string into two parts so it doesn't occur multiple times in the binary.
+    // The string is supposed to be replaced by editing the binary. So multiple replacements should not happen.
+    pal::string_t hi_part = _X("c3ab8ff13720e8ad9047dd39466b3c89");
+    pal::string_t lo_part = _X("74e592c2fa383d4a3960714caef0c4f2");
+
+    if (strncmp(buf, hi_part.c_str(), hi_part.size()) == 0 &&
+        strncmp(buf + hi_part.size(), lo_part.c_str(), lo_part.size()) == 0)
+    {
+        trace::error(_X("This executable was not bound to a managed DLL by replacing the binding resource string. The current value is: %s"), buf);
+        return false;
+    }
+
+    return true;
+}
+#endif

@@ -111,6 +111,7 @@ SHARED_API int hostfxr_load(const hostfxr_interface_t* input)
     }
     trace::verbose(_X("Reading from exe interface version: [0x%04x:%d] to initialize fxr version: [0x%04x:%d]"), input->version_hi, input->version_lo, HOSTFXR_INTERFACE_LAYOUT_VERSION_HI, HOSTFXR_INTERFACE_LAYOUT_VERSION_LO);
 
+    g_init.exe_binding = input->exe_binding;
     g_init.exe_type = input->exe_type;
     g_init.exe_commit = input->exe_commit;
     g_init.exe_version = input->exe_version;
@@ -125,7 +126,7 @@ SHARED_API int hostfxr_main(const int argc, const pal::char_t* argv[])
     trace::info(_X("--- Invoked hostfxr [commit hash: %s] main"), _STRINGIFY(REPO_COMMIT_HASH));
 
     fx_muxer_t muxer;
-    return muxer.execute(g_init.exe_type, argc, argv);
+    return muxer.execute(g_init.exe_type, g_init.exe_binding, argc, argv);
 }
 
 SHARED_API int hostfxr_unload()

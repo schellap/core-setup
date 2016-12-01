@@ -777,7 +777,7 @@ int fx_muxer_t::read_config_and_execute(
  *  Main entrypoint to detect operating mode and perform corehost, muxer,
  *  standalone application activation and the SDK activation.
  */
-int fx_muxer_t::execute(const pal::string_t& exe_type,
+int fx_muxer_t::execute(const pal::string_t& exe_type, const pal::string_t& exe_binding,
         const int argc, const pal::char_t* argv[])
 {
     pal::string_t own_path;
@@ -824,7 +824,7 @@ int fx_muxer_t::execute(const pal::string_t& exe_type,
         bool is_unsigned_host = exe_type.empty();
         bool is_app_host = (exe_type == _X("apphost"));
         bool is_dotnet_host = (exe_type == _X("dotnet"));
-        bool can_load_own_dll = is_unsigned_host || (is_app_host && pal::validate_binding(own_dll));
+        bool can_load_own_dll = is_unsigned_host || (is_app_host && (exe_binding == own_dll_filename));
 
         trace::info(_X("Activation parameters, unsigned host: '%d', app host: '%d', loadable: '%d'"), is_unsigned_host, is_app_host, can_load_own_dll);
 

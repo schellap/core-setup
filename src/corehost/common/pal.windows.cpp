@@ -314,11 +314,11 @@ void pal::readdir(const string_t& path, std::vector<pal::string_t>* list)
     pal::readdir(path, _X("*"), list);
 }
 
-#define SHA256_STR_LEN 64
+#define SHA256_HEXSTR_LEN 64
 #define SHA256_BYTE_LEN 32
 
 #if FEATURE_BINDING_CHECK
-bool pal::validate_binding(const pal::string_t& own_dll)
+bool pal::apphost_can_run(pal::string_t* str)
 {
     HMODULE hModule = nullptr;
     if (GetModuleHandleEx(0, nullptr, &hModule) == FALSE)
@@ -327,29 +327,21 @@ bool pal::validate_binding(const pal::string_t& own_dll)
         return false;
     }
 
-    char_t buf[SHA256_STR_LEN + 1] = { 0 };
-    if (LoadStringW(hModule, IDS_APPHOST_BINDING_HASH, buf, _countof(buf)) < SHA256_STR_LEN)
+    char_t buf[SHA256_HEXSTR_LEN + 1] = { 0 };
+    if (LoadStringW(hModule, IDS_APPHOST_BINDING_HASH, buf, _countof(buf)) == 0)
     {
-        trace::error(_X("The resource string in own exe could not be loaded with win32 LoadString: '%s'"), buf);
+        trace::error(_X("The current binding resource string could not be loaded with Win32 LoadString"));
         return false;
     }
 
-    trace::info(_X("The resource string in own exe is %s"), buf);
-
-    // We are splitting the baseline string into two parts so it doesn't occur multiple times in the binary.
-    // The string is supposed to be replaced by editing the binary. So multiple replacements should not happen.
-    pal::string_t hi_part = L"c3ab8ff13720e8ad9047dd39466b3c89";
-    pal::string_t lo_part = L"74e592c2fa383d4a3960714caef0c4f2";
-
-    if (strncmp(buf, hi_part.c_str(), hi_part.size()) == 0 &&
-        strncmp(buf + hi_part.size(), lo_part.c_str(), lo_part.size()) == 0)
+    if (!is_exe_enabled_for_execution(buf))
     {
-        // Change to trace::error and return failure when hash embedding is done.
-        trace::warning(_X("The resource string used for binding was not invalidated in the executable: %s"), buf);
-        return true;
+        return false;
     }
-
-    // No hash validation.
+    if (str != nullptr)
+    {
+        str->assign(buf, size);
+    }
     return true;
 }
 

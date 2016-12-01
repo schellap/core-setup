@@ -41,4 +41,9 @@ bool parse_known_args(
     std::unordered_map<pal::string_t, std::vector<pal::string_t>>* opts,
     int* num_args);
 bool skip_utf8_bom(pal::ifstream_t* stream);
+
+#ifdef FEATURE_BINDING_CHECK
+bool is_exe_enabled_for_execution(const pal::char_t* buf);
+#endif
+
 #endif

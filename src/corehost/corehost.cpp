@@ -21,20 +21,17 @@ typedef int(*hostfxr_load_fn) (hostfxr_interface_t* init);
 typedef int(*hostfxr_unload_fn) ();
 typedef int(*hostfxr_main_fn) (const int argc, const pal::char_t* argv[]);
 
-hostfxr_interface_t get_hostfxr_init_data(const pal::char_t* exe_type)
-{
-    hostfxr_interface_t data;
-    data.version_lo = HOSTFXR_INTERFACE_LAYOUT_VERSION_LO;
-    data.version_hi = HOSTFXR_INTERFACE_LAYOUT_VERSION_HI;
-    data.exe_version = _STRINGIFY(CUREXE_PKG_VER);
-    data.exe_commit = _STRINGIFY(REPO_COMMIT_HASH);
-    data.exe_type = exe_type;
-    return data;
-}
-
 pal::string_t resolve_fxr_path(const pal::string_t& own_dir)
 {
-#if !FEATURE_APPHOST
+#if FEATURE_APPHOST
+    pal::string_t fxr_path;
+    if (library_exists_in_dir(own_dir, LIBFXR_NAME, &fxr_path))
+    {
+        trace::info(_X("Resolved fxr [%s]..."), fxr_path.c_str());
+        return fxr_path;
+    }
+    return pal::string_t();
+#else
     pal::string_t fxr_dir = own_dir;
     append_path(&fxr_dir, _X("host"));
     append_path(&fxr_dir, _X("fxr"));
@@ -70,19 +67,19 @@ pal::string_t resolve_fxr_path(const pal::string_t& own_dir)
             return ret_path;
         }
     }
-#endif // !FEATURE_APPHOST
-
-    pal::string_t fxr_path;
-    if (library_exists_in_dir(own_dir, LIBFXR_NAME, &fxr_path))
-    {
-        trace::info(_X("Resolved fxr [%s]..."), fxr_path.c_str());
-        return fxr_path;
-    }
-    return pal::string_t();
+#endif
 }
 
 int run(const int argc, const pal::char_t* argv[])
 {
+    pal::string_t binding;
+#ifdef FEATURE_APPHOST
+    if (pal::apphost_can_run(&binding))
+    {
+        trace::error(_X("A fatal error was encountered. This executable was not bound to load a managed DLL."));
+        return StatusCode::AppHostExeNotBoundFailure;
+    }
+#endif
     pal::string_t own_path;
     if (!pal::get_own_executable_path(&own_path) || !pal::realpath(&own_path))
     {
@@ -110,42 +107,48 @@ int run(const int argc, const pal::char_t* argv[])
         return StatusCode::CoreHostLibLoadFailure;
     }
 
-    // Clean up on scope exit.
-    auto unload_proc = [&fxr]() { pal::unload_library(fxr); };
-    at_scope_exit<decltype(unload_proc)> unload(unload_proc);
+    // pal::unload_library will be done by process exit.
 
     // Obtain the entrypoints.
     hostfxr_load_fn load_fn = (hostfxr_load_fn) pal::get_symbol(fxr, "hostfxr_load");
     hostfxr_unload_fn unload_fn = (hostfxr_unload_fn) pal::get_symbol(fxr, "hostfxr_unload");
     hostfxr_main_fn main_fn = (hostfxr_main_fn) pal::get_symbol(fxr, "hostfxr_main");
 
-    // The load and unload exports were added to hostfxr.dll post 1.0.0 RTM. Do not allow new "dotnet.exe" or "apphost.exe"
-    // to load old hostfxr.dll because the new executables may be code-signed, but old hostfxr.dll may not perform any load checks.
-    if (load_fn == nullptr || unload_fn == nullptr)
-    {
-        trace::error(_X("This executable relies on newer functionality (exports) provided by '%s'"), LIBFXR_NAME);
-        trace::error(_X("  - Updating '%s' to version '%s' might help resolve this problem."), LIBFXR_NAME, _STRINGIFY(HOST_FXR_PKG_VER));
+    // The load and unload exports were added to hostfxr.dll post 1.1.0 RTM.
+    bool hostfxr_exports_load_api = (load_fn != nullptr && unload_fn != nullptr);
 
-        return StatusCode::CoreHostLibSymbolFailure;
+    if (!hostfxr_exports_load_api)
+    {
+        // Execute main.
+        return main_fn(argc, argv);
     }
-
-    // Initialize hostfxr.
-    hostfxr_interface_t init = get_hostfxr_init_data(CURHOST_TYPE);
-
-    int ret_code = load_fn(&init);
-    if (ret_code != 0)
+    else
     {
-        trace::error(_X("An error occurred during initialization of '%s'"), LIBFXR_NAME);
+        // Initialize hostfxr.
+        hostfxr_interface_t init;
+        init.version_lo = HOSTFXR_INTERFACE_LAYOUT_VERSION_LO;
+        init.version_hi = HOSTFXR_INTERFACE_LAYOUT_VERSION_HI;
+        init.exe_version = _STRINGIFY(CUREXE_PKG_VER);
+        init.exe_commit = _STRINGIFY(REPO_COMMIT_HASH);
+        init.exe_type = CURHOST_TYPE; 
+        init.exe_binding = binding.c_str();
+
+        int ret_code = load_fn(&init);
+        if (ret_code == 0)
+        {
+            // Execute main.
+            ret_code = main_fn(argc, argv);
+
+            // Unload notification.
+            (void) unload_fn();
+        }
+        else
+        {
+            trace::error(_X("An error occurred during initialization of '%s'"), LIBFXR_NAME);
+        }
+
         return ret_code;
     }
-
-    // Execute main.
-    ret_code = main_fn(argc, argv);
-
-    // Unload notification.
-    (void) unload_fn();
-
-    return ret_code;
 }
 
 static char sccsid[] = "@(#)"            \
