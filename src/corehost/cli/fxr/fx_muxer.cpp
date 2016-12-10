@@ -825,13 +825,13 @@ int fx_muxer_t::execute(const int argc, const pal::char_t* argv[])
 
     // Could not execute as an app, try the CLI SDK dotnet.dll
     pal::string_t sdk_dotnet;
-    if (!resolve_sdk_dotnet_path(own_dir, &sdk_dotnet))
+    if (!resolve_sdk_dotnet_path(own_dir, argc, argv, &arg_offset, &sdk_dotnet))
     {
-        assert(argc > 1);
-        if (pal::strcasecmp(_X("--help"), argv[1]) == 0 ||
-            pal::strcasecmp(_X("--version"), argv[1]) == 0 ||
-            pal::strcasecmp(_X("-h"), argv[1]) == 0 ||
-            pal::strcasecmp(_X("-v"), argv[1]) == 0)
+        assert(argc > arg_offset);
+        if (pal::strcasecmp(_X("--help"), argv[arg_offset]) == 0 ||
+            pal::strcasecmp(_X("--version"), argv[arg_offset]) == 0 ||
+            pal::strcasecmp(_X("-h"), argv[arg_offset]) == 0 ||
+            pal::strcasecmp(_X("-v"), argv[arg_offset]) == 0)
         {
             return muxer_usage(true);
         }
@@ -849,8 +849,8 @@ int fx_muxer_t::execute(const int argc, const pal::char_t* argv[])
 
     // Transform dotnet [command] [args] -> dotnet dotnet.dll [command] [args]
 
-    std::vector<const pal::char_t*> new_argv(argc + 1);
-    memcpy(&new_argv.data()[2], argv + 1, (argc - 1) * sizeof(pal::char_t*));
+    std::vector<const pal::char_t*> new_argv(argc - arg_offset + 2);
+    memcpy(&new_argv.data()[2], argv + arg_offset, (argc - arg_offset) * sizeof(pal::char_t*));
     new_argv[0] = argv[0];
     new_argv[1] = sdk_dotnet.c_str();
 
