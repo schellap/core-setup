@@ -67,6 +67,14 @@ pal::string_t resolve_fxr_path(const pal::string_t& own_dir)
             return ret_path;
         }
     }
+    // TODO: Do not allow dotnet to load hostfxr side-by-side.
+    pal::string_t fxr_path;
+    if (library_exists_in_dir(own_dir, LIBFXR_NAME, &fxr_path))
+    {
+        trace::info(_X("Resolved fxr [%s]..."), fxr_path.c_str());
+        return fxr_path;
+    }
+    return pal::string_t();
 #endif
 }
 
