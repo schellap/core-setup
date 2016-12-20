@@ -33,7 +33,4 @@ bool parse_known_args(
     int* num_args);
 bool skip_utf8_bom(pal::ifstream_t* stream);
 
-#ifdef FEATURE_APPHOST
-bool is_exe_enabled_for_execution(const pal::string_t& own_path);
-#endif
 #endif

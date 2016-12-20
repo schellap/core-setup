@@ -6,6 +6,7 @@
 #include "pal.h"
 #include "fx_ver.h"
 #include "error_codes.h"
+#include <cstdio>
 
 #if FEATURE_APPHOST
 #define CURHOST_TYPE    _X("apphost")
@@ -16,6 +17,55 @@
 #endif // !FEATURE_APPHOST
 
 typedef int(*hostfxr_main_fn) (const int argc, const pal::char_t* argv[]);
+
+#if FEATURE_APPHOST
+#define EMBED_HASH_HI_PART_UTF8 "c3ab8ff13720e8ad9047dd39466b3c89" // SHA-256 of "foobar" in UTF-8
+#define EMBED_HASH_LO_PART_UTF8 "74e592c2fa383d4a3960714caef0c4f2"
+#define EMBED_HASH_FULL_UTF8    (EMBED_HASH_HI_PART_UTF8 EMBED_HASH_LO_PART_UTF8) // NUL terminated
+bool is_exe_enabled_for_execution(const pal::string_t& own_path)
+{
+    constexpr int EMBED_SZ = sizeof(EMBED_HASH_FULL_UTF8) / sizeof(EMBED_HASH_FULL_UTF8[0]);
+    constexpr int EMBED_MAX = (EMBED_SZ > 1024 ? EMBED_SZ : 1024);
+    static const char embed[EMBED_MAX] = EMBED_HASH_FULL_UTF8; // series of NULs followed by embed hash
+    static const char hi_part[] = EMBED_HASH_HI_PART_UTF8;
+    static const char lo_part[] = EMBED_HASH_LO_PART_UTF8;
+
+    std::string binding(&embed[0]);
+    trace::info(_X("The managed DLL bound to this executable is: '%s'"), binding.c_str());
+
+    // We are splitting the baseline string into two parts so it doesn't occur multiple times in the exe file.
+    // The string is supposed to be replaced by editing the executable. So we need to have a reference string
+    // that is not replaced in the binary to be able to compare.
+    size_t hi_len = (sizeof(hi_part) / sizeof(hi_part[0])) - 1;
+    size_t lo_len = (sizeof(lo_part) / sizeof(lo_part[0])) - 1;
+
+    if ((binding.size() >= (hi_len + lo_len)) && 
+        binding.compare(0, hi_len, &hi_part[0]) == 0 &&
+        binding.compare(hi_len, lo_len, &lo_part[0]) == 0)
+    {
+        trace::error(_X("This executable is not bound to a managed DLL to execute. The binding value is: '%s'"), binding.c_str());
+        return false;
+    }
+
+    pal::string_t own_name = get_filename(own_path);
+    pal::string_t own_dll_filename = get_executable(own_name) + _X(".dll");
+
+    std::vector<char> utf8_dll_filename;
+    if (!pal::pal_utf8string(own_dll_filename, &utf8_dll_filename))
+    {
+        trace::error(_X("The current executable name could not be obtained as UTF8 %s"), own_dll_filename.c_str());
+        return false;
+    }
+
+    if (pal::cstrcasecmp(utf8_dll_filename.data(), binding.c_str()) != 0)
+    {
+        trace::error(_X("The managed DLL bound to this executable: '%s', did not match own name '%s'."), binding.c_str(), own_dll_filename.c_str());
+        return false;
+    }
+
+    return true;
+}
+#endif
 
 pal::string_t resolve_fxr_path(const pal::string_t& own_dir)
 {
