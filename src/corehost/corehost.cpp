@@ -6,7 +6,6 @@
 #include "pal.h"
 #include "fx_ver.h"
 #include "error_codes.h"
-#include "resources.h"
 
 #if FEATURE_APPHOST
 #define CURHOST_TYPE    _X("apphost")
@@ -85,7 +84,7 @@ int run(const int argc, const pal::char_t* argv[])
     }
 
 #ifdef FEATURE_APPHOST
-    if (is_exe_enabled_for_execution(own_path))
+    if (!is_exe_enabled_for_execution(own_path))
     {
         trace::error(_X("A fatal error was encountered. This executable was not bound to load a managed DLL."));
         return StatusCode::AppHostExeNotBoundFailure;

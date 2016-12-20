@@ -338,15 +338,3 @@ void pal::readdir(const pal::string_t& path, std::vector<pal::string_t>* list)
 {
     readdir(path, _X("*"), list);
 }
-
-#if FEATURE_APPHOST
-bool pal::get_exe_binding(pal::string_t* str)
-{
-    static const char embed[] = "c3ab8ff13720e8ad9047dd39466b3c8974e592c2fa383d4a3960714caef0c4f2";
-    trace::info(_X("The binding resource string in own exe is %s"), embed);
-
-    size_t size = sizeof(embed) / sizeof(embed[0]);
-    str->assign(&embed[0], size);
-    return true;
-}
-#endif

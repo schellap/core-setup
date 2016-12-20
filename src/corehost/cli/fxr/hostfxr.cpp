@@ -86,7 +86,6 @@ static char sccsid[] = "@(#)"            \
                        __TIME__          \
                        ;
 
-
 SHARED_API int hostfxr_main(const int argc, const pal::char_t* argv[])
 {
     trace::setup();
@@ -96,3 +95,4 @@ SHARED_API int hostfxr_main(const int argc, const pal::char_t* argv[])
     fx_muxer_t muxer;
     return muxer.execute(argc, argv);
 }
+

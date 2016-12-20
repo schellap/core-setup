@@ -4,7 +4,6 @@
 #include "pal.h"
 #include "trace.h"
 #include "utils.h"
-#include "resources.h"
 
 #include <cassert>
 #include <locale>
@@ -240,10 +239,8 @@ bool pal::utf8_palstring(const std::string& str, pal::string_t* out)
     return wchar_convert_helper(CP_UTF8, &str[0], str.size(), out);
 }
 
-bool pal::pal_clrstring(const pal::string_t& str, std::vector<char>* out)
+bool pal::pal_utf8string(const pal::string_t& str, std::vector<char>* out)
 {
-    out->clear();
-
     // Pass -1 as we want explicit null termination in the char buffer.
     size_t size = ::WideCharToMultiByte(CP_UTF8, 0, str.c_str(), -1, nullptr, 0, nullptr, nullptr);
     if (size == 0)
@@ -252,6 +249,11 @@ bool pal::pal_clrstring(const pal::string_t& str, std::vector<char>* out)
     }
     out->resize(size, '\0');
     return ::WideCharToMultiByte(CP_UTF8, 0, str.c_str(), -1, out->data(), out->size(), nullptr, nullptr) != 0;
+}
+
+bool pal::pal_clrstring(const pal::string_t& str, std::vector<char>* out)
+{
+    return pal_utf8string(str, out);
 }
 
 bool pal::clr_palstring(const char* cstr, pal::string_t* out)
@@ -314,26 +316,3 @@ void pal::readdir(const string_t& path, std::vector<pal::string_t>* list)
     pal::readdir(path, _X("*"), list);
 }
 
-#if FEATURE_APPHOST
-#define SHA256_HEXSTR_LEN 64
-#define SHA256_BYTE_LEN 32
-bool pal::get_exe_binding(pal::string_t* str)
-{
-    HMODULE hModule = nullptr;
-    if (GetModuleHandleEx(0, nullptr, &hModule) == FALSE)
-    {
-        trace::error(_X("The module handle for current executable couldn't be obtained."));
-        return false;
-    }
-
-    char_t buf[SHA256_HEXSTR_LEN + 1] = { 0 };
-    if (LoadStringW(hModule, IDS_APPHOST_BINDING_HASH, buf, _countof(buf)) == 0)
-    {
-        trace::error(_X("The current binding resource string could not be loaded with Win32 LoadString"));
-        return false;
-    }
-    str->assign(&buf[0]);
-    return true;
-}
-
-#endif
